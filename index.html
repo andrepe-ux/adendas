@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contador de Adendas</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .drag-area {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .drag-area.dragover {
+      border-color: #4f46e5;
+      background-color: #f5f3ff;
+      transform: scale(1.01);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-indigo-50/20 to-slate-50 min-h-screen text-slate-800 antialiased p-6 md:p-12">
+
+  <div class="max-w-6xl mx-auto">
+    <header class="mb-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <span class="text-xs font-bold uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">Confirmar sempre os movimentos</span>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mt-3">Contador de Adendas <span class="text-indigo-600">Mercadona</span></h1>
+        <p class="text-slate-500 mt-1">Cruzamento entre dados contratuais e afetações de estabelecimentos.</p>
+      </div>
+    </header>
+
+    <div id="statusNotification" class="hidden border p-4 rounded-2xl mb-8 shadow-sm transition-all duration-300" role="alert">
+      <div class="flex items-center gap-3">
+        <div id="statusIcon" class="w-3 h-3 rounded-full"></div>
+        <span id="statusMessage" class="text-sm font-medium"></span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+      <div class="flex flex-col">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+          <span class="w-5 h-5 flex items-center justify-center bg-slate-200 text-slate-700 rounded-full text-[10px]">1</span>
+          Dados Contratuais (Atribuições a um ciclo)
+        </label>
+        <div id="dropZoneContratuais" class="drag-area group border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-8 text-center bg-white cursor-pointer shadow-sm hover:shadow-md">
+          <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          </div>
+          <p class="text-slate-700 font-bold text-sm">Arraste o ficheiro de Dados Contratuais para aqui</p>
+          <p class="text-xs text-slate-400 mt-1">ou clique para selecionar a partir do computador</p>
+          <input type="file" id="inputContratuais" class="hidden" accept=".xlsx,.xls" />
+        </div>
+        <p id="infoContratuais" class="mt-2.5 text-xs text-emerald-600 font-semibold h-4 px-1"></p>
+      </div>
+
+      <div class="flex flex-col">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+          <span class="w-5 h-5 flex items-center justify-center bg-slate-200 text-slate-700 rounded-full text-[10px]">2</span>
+          Exportação Afectação
+        </label>
+        <div id="dropZoneAfetacao" class="drag-area group border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-8 text-center bg-white cursor-pointer shadow-sm hover:shadow-md">
+          <div class="w-12 h-12 bg-violet-50 text-violet-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+          </div>
+          <p class="text-slate-700 font-bold text-sm">Arraste o ficheiro de Exportação Afectação para aqui</p>
+          <p class="text-xs text-slate-400 mt-1">ou clique para selecionar a partir do computador</p>
+          <input type="file" id="inputAfetacao" class="hidden" accept=".xlsx,.xls" />
+        </div>
+        <p id="infoAfetacao" class="mt-2.5 text-xs text-emerald-600 font-semibold h-4 px-1"></p>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-10">
+      <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+        <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+        Parâmetros de Filtragem
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-2">Filtrar por Centro</label>
+          <select id="selectCentro" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+            <option value="">[Mostrar todos os centros disponíveis]</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-2">Data de Início Mínima</label>
+          <input type="date" id="filtroDataInicio" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 mb-2">Data de Início Máxima</label>
+          <input type="date" id="filtroDataFim" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+        </div>
+      </div>
+
+      <div class="mt-6 flex flex-wrap gap-3 border-t border-slate-100 pt-5">
+        <button id="btnProcessar" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-6 py-3.5 rounded-xl transition-all shadow-sm active:scale-95">
+          Processar Cruzamento de Dados
+        </button>
+        <button id="btnExportarExcel" class="bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-5 py-3.5 rounded-xl transition-all active:scale-95">
+          Exportar para Excel (.xlsx)
+        </button>
+        <button id="btnExportarPDF" class="bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-5 py-3.5 rounded-xl transition-all active:scale-95">
+          Gerar Relatório PDF
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
+      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Trabalhadores</p>
+        <p id="kpiTrabalhadores" class="text-4xl font-extrabold text-slate-900 mt-2">0</p>
+      </div>
+      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Total de Linhas Consolidadas</p>
+        <p id="kpiOcorrencias" class="text-4xl font-extrabold text-indigo-600 mt-2">0</p>
+      </div>
+      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex flex-col justify-between">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Centro Selecionado</p>
+        <p id="kpiCentroAtivo" class="text-sm font-bold text-emerald-600 mt-3 truncate bg-emerald-50/50 px-3 py-1.5 rounded-lg w-max">Todos os Centros</p>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+        <h2 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Resultados</h2>
+        <span class="text-xs font-medium text-slate-500">Ordenado por volume de ocorrências</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-slate-500 font-bold uppercase text-xs tracking-wider border-b border-slate-100">
+              <th class="px-6 py-4">Matrícula</th>
+              <th class="px-6 py-4">Trabalhador</th>
+              <th class="px-6 py-4">Centro Ativo</th>
+              <th class="px-6 py-4 text-right">Linhas Validadas</th>
+            </tr>
+          </thead>
+          <tbody id="corpoTabelaResultados" class="divide-y divide-slate-100 font-medium">
+            <tr>
+              <td colspan="4" class="px-6 py-12 text-center text-slate-400">
+                <div class="flex flex-col items-center justify-center gap-2">
+                  <svg class="w-8 h-8 text-slate-300 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                  <span>Por favor, carregue os dois ficheiros Excel requeridos para iniciar o processamento de dados.</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let livroContratuais = null;
+    let livroAfetacao = null;
+    let listaResultados = [];
+    
+    let filtroDatasAtivoNoPDF = "Histórico Completo (Sem filtros de data)";
+
+    // Dicionários inteligentes de mapeamento
+    const PALAVRAS_MATRICULA = ['matricula', 'nº matricula', 'mecanografico', 'nº mecanografico', 'numero', 'id', 'codigo', 'cod'];
+    const PALAVRAS_NOME = ['trabalhador', 'nome', 'employee', 'colaborador', 'nome completo'];
+    const PALAVRAS_CENTRO = ['estabelecimento', 'centro', 'centro de custo', 'local', 'departamento', 'estab'];
+    const PALAVRAS_INICIO = ['data inicio', 'data de inicio', 'data atribuicao', 'dt inicio', 'data', 'inicio'];
+    const PALAVRAS_FIM = ['data fim', 'data de fim', 'data termino', 'data de termino', 'dt fim', 'termino', 'fim'];
+
+    function normalizarString(valor) {
+      if (valor === null || valor === undefined) return '';
+      return valor.toString().trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ' ');
+    }
+
+    function célulaContémTextoReal(valor) {
+      if (valor === null || valor === undefined) return false;
+      return valor.toString().replace(/[\s\u00A0\t\r\n]+/g, '').length > 0;
+    }
+
+    function extrairMatriculaPura(valor) {
+      if (valor === null || valor === undefined) return '';
+      return valor.toString().trim().replace(/[.\-_]/g, '').replace(/^0+/, '');
+    }
+
+    function encontrarIndiceColuna(linhaCabecalho, palavrasDicionario) {
+      if (!linhaCabecalho || !Array.isArray(linhaCabecalho)) return -1;
+      const termosNorm = palavrasDicionario.map(t => normalizarString(t));
+      
+      for (let i = 0; i < linhaCabecalho.length; i++) {
+        const cabecalhoFormatado = normalizarString(linhaCabecalho[i]);
+        if (termosNorm.includes(cabecalhoFormatado)) return i;
+      }
+      return -1;
+    }
+
+    function processarObjetoData(valor) {
+      if (!valor) return null;
+      let d = null;
+
+      if (valor instanceof Date) {
+        d = new Date(valor.getFullYear(), valor.getMonth(), valor.getDate());
+      } else if (typeof valor === "number") {
+        const dataUla = new Date(Math.round((valor - 25569) * 86400 * 1000));
+        d = new Date(dataUla.getUTCFullYear(), dataUla.getUTCMonth(), dataUla.getUTCDate());
+      } else {
+        const stringData = valor.toString().replace(/[\s\u00A0]+/g, ' ').trim();
+        const padraoPt = stringData.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})/);
+        if (padraoPt) {
+          d = new Date(parseInt(padraoPt[3], 10), parseInt(padraoPt[2], 10) - 1, parseInt(padraoPt[1], 10));
+        } else {
+          const dataFallback = new Date(stringData);
+          if (!isNaN(dataFallback.getTime())) {
+            d = new Date(dataFallback.getFullYear(), dataFallback.getMonth(), dataFallback.getDate());
+          }
+        }
+      }
+
+      if (d && !isNaN(d.getTime())) {
+        d.setHours(0, 0, 0, 0);
+        return d;
+      }
+      return null;
+    }
+
+    function formatarDataISOparaPT(dataStr) {
+      if (!dataStr) return '';
+      const partes = dataStr.split('-');
+      if (partes.length !== 3) return dataStr;
+      return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+
+    function vincularMecanismoUpload(idZona, idInput, callbackSucesso) {
+      const zona = document.getElementById(idZona);
+      const input = document.getElementById(idInput);
+      
+      zona.addEventListener('click', () => input.click());
+      input.addEventListener('change', (e) => { if (e.target.files.length > 0) processarFicheiro(e.target.files[0], callbackSucesso); });
+      
+      ['dragenter', 'dragover'].forEach(evento => zona.addEventListener(evento, (e) => { e.preventDefault(); zona.classList.add('dragover'); }));
+      ['dragleave', 'drop'].forEach(evento => zona.addEventListener(evento, (e) => { e.preventDefault(); zona.classList.remove('dragover'); }));
+      
+      zona.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const arquivo = e.dataTransfer.files[0];
+        if (arquivo) processarFicheiro(arquivo, callbackSucesso);
+      });
+    }
+
+    function processarFicheiro(arquivo, exito) {
+      AlterarNotificacaoVisual('A efetuar a leitura do ficheiro Excel. Por favor, aguarde...', 'blue');
+      const leitor = new FileReader();
+      leitor.onload = function(evento) {
+        try {
+          const binario = new Uint8Array(evento.target.result);
+          const workbook = XLSX.read(binario, { type: 'array', cellDates: true, raw: false });
+          exito(workbook, arquivo.name);
+        } catch (err) {
+          AlterarNotificacaoVisual('Erro ao ler o ficheiro Excel. Certifique-se de que o documento é válido.', 'amber');
+          console.error(err);
+        }
+      };
+      leitor.readAsArrayBuffer(arquivo);
+    }
+
+    function AlterarNotificacaoVisual(mensagem, tom) {
+      const caixa = document.getElementById('statusNotification');
+      const bola = document.getElementById('statusIcon');
+      const texto = document.getElementById('statusMessage');
+
+      caixa.className = "border p-4 rounded-2xl mb-8 shadow-sm transition-all duration-300 flex items-center gap-3";
+      
+      if (tom === 'blue') {
+        caixa.classList.add('bg-indigo-50/70', 'border-indigo-100', 'text-indigo-800');
+        bola.className = "w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse";
+      } else if (tom === 'green') {
+        caixa.classList.add('bg-emerald-50/70', 'border-emerald-100', 'text-emerald-800');
+        bola.className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
+      } else {
+        caixa.classList.add('bg-amber-50/70', 'border-amber-100', 'text-amber-800');
+        bola.className = "w-2.5 h-2.5 rounded-full bg-amber-500";
+      }
+      
+      texto.innerHTML = message = mensagem;
+      caixa.classList.remove('hidden');
+    }
+
+    vincularMecanismoUpload('dropZoneContratuais', 'inputContratuais', (wb, nome) => {
+      livroContratuais = wb;
+      const folhaExiste = wb.SheetNames.some(f => normalizarString(f) === "atribuicoes a um ciclo");
+      
+      if (folhaExiste) {
+        document.getElementById('infoContratuais').innerText = `✓ Carregado: ${nome}`;
+        AlterarNotificacaoVisual(`Ficheiro contratual validado com sucesso. Folha "Atribuições a um ciclo" identificada.`, 'green');
+      } else {
+        document.getElementById('infoContratuais').innerText = `⚠ Incompatibilidade: ${nome}`;
+        AlterarNotificacaoVisual(`Ficheiro carregado, contudo <strong>não foi localizada</strong> a folha "Atribuições a um ciclo". Verifique a nomenclatura das abas do documento.`, 'amber');
+      }
+    });
+
+    vincularMecanismoUpload('dropZoneAfetacao', 'inputAfetacao', (wb, nome) => {
+      livroAfetacao = wb;
+      document.getElementById('infoAfetacao').innerText = `✓ Carregado: ${nome}`;
+      AlterarNotificacaoVisual(`Ficheiro de Afetação carregado. A mapear os centros com colaboradores ativos...`, 'blue');
+      gerarListaDeCentrosDisponiveis();
+    });
+
+    function gerarListaDeCentrosDisponiveis() {
+      if (!livroAfetacao) return;
+      const folhaAlvo = livroAfetacao.SheetNames.find(f => normalizarString(f) === 'estabelecimento') || livroAfetacao.SheetNames[0];
+      const dadosMatriz = XLSX.utils.sheet_to_json(livroAfetacao.Sheets[folhaAlvo], { header: 1, raw: false });
+      
+      if (dadosMatriz.length === 0) return;
+      const cabecalhos = dadosMatriz[0];
+      const posCentro = encontrarIndiceColuna(cabecalhos, PALAVRAS_CENTRO);
+      const posDataFim = encontrarIndiceColuna(cabecalhos, PALAVRAS_FIM);
+
+      let colecaoCentros = [];
+      for (let i = 1; i < dadosMatriz.length; i++) {
+        const linha = dadosMatriz[i];
+        if (!linha || linha.length === 0) continue;
+
+        const valDataFim = posDataFim !== -1 ? linha[posDataFim] : null;
+        const valCentro = posCentro !== -1 ? linha[posCentro] : null;
+
+        // FILTRAGEM RESTRITA: Exclui linhas onde existe registo de Data de término
+        if (!célulaContémTextoReal(valDataFim) && valCentro) {
+          colecaoCentros.push(valCentro.toString().trim());
+        }
+      }
+
+      colecaoCentros = [...new Set(colecaoCentros)].sort();
+      const menuSelect = document.getElementById('selectCentro');
+      menuSelect.innerHTML = '<option value="">[Mostrar todos os centros disponíveis]</option>';
+      colecaoCentros.forEach(centro => {
+        const opc = document.createElement('option');
+        opc.value = centro; opc.textContent = centro; menuSelect.appendChild(opc);
+      });
+      AlterarNotificacaoVisual(`Lista de centros atualizada. Foram filtradas as linhas com data de término para garantir apenas registos ativos.`, 'green');
+    }
+
+    document.getElementById('btnProcessar').addEventListener('click', executarMotorAnalise);
+
+    function executarMotorAnalise() {
+      if (!livroContratuais || !livroAfetacao) {
+        alert('Operação interrompida: É necessário submeter ambos os ficheiros Excel para realizar o cruzamento.');
+        return;
+      }
+
+      const filtroCentroSelecao = document.getElementById('selectCentro').value;
+      const uiDataMinima = document.getElementById('filtroDataInicio').value;
+      const uiDataMaxima = document.getElementById('filtroDataFim').value;
+      const aplicarFiltroCronologico = !!(uiDataMinima || uiDataMaxima);
+      
+      if (uiDataMinima && uiDataMaxima) {
+        filtroDatasAtivoNoPDF = `Intervalo: ${formatarDataISOparaPT(uiDataMinima)} a ${formatarDataISOparaPT(uiDataMaxima)}`;
+      } else if (uiDataMinima) {
+        filtroDatasAtivoNoPDF = `Intervalo: A partir de ${formatarDataISOparaPT(uiDataMinima)}`;
+      } else if (uiDataMaxima) {
+        filtroDatasAtivoNoPDF = `Intervalo: Até ${formatarDataISOparaPT(uiDataMaxima)}`;
+      } else {
+        filtroDatasAtivoNoPDF = "Histórico Completo (Sem filtros de data)";
+      }
+
+      let objetoDataMin = null; let objetoDataMax = null;
+      if (uiDataMinima) {
+        const p = uiDataMinima.split('-'); objetoDataMin = new Date(p[0], p[1] - 1, p[2]); objetoDataMin.setHours(0,0,0,0);
+      }
+      if (uiDataMaxima) {
+        const p = uiDataMaxima.split('-'); objetoDataMax = new Date(p[0], p[1] - 1, p[2]); objetoDataMax.setHours(0,0,0,0);
+      }
+
+      const folhaAf = livroAfetacao.SheetNames.find(f => normalizarString(f) === 'estabelecimento') || livroAfetacao.SheetNames[0];
+      const matrizAfetacao = XLSX.utils.sheet_to_json(livroAfetacao.Sheets[folhaAf], { header: 1, raw: false });
+      
+      const cabecalhosAf = matrizAfetacao[0] || [];
+      const afIndiceMatricula = encontrarIndiceColuna(cabecalhosAf, PALAVRAS_MATRICULA);
+      const afIndiceNome = encontrarIndiceColuna(cabecalhosAf, PALAVRAS_NOME);
+      const afIndiceCentro = encontrarIndiceColuna(cabecalhosAf, PALAVRAS_CENTRO);
+      const afIndiceDataFim = encontrarIndiceColuna(cabecalhosAf, PALAVRAS_FIM);
+
+      const mapaDinamicoCentros = {};
+      for (let i = 1; i < matrizAfetacao.length; i++) {
+        const linha = matrizAfetacao[i];
+        if (!linha || linha.length === 0) continue;
+
+        // CRITÉRIO REQUERIDO: Ignora totalmente as linhas que possuem data de término preenchida
+        const dadoDataFim = afIndiceDataFim !== -1 ? linha[afIndiceDataFim] : null;
+        if (célulaContémTextoReal(dadoDataFim)) continue;
+
+        const mPura = afIndiceMatricula !== -1 ? extrairMatriculaPura(linha[afIndiceMatricula]) : '';
+        const nPuro = afIndiceNome !== -1 ? normalizarString(linha[afIndiceNome]) : '';
+        const centroTexto = afIndiceCentro !== -1 ? linha[afIndiceCentro] : 'Centro Ativo Sem Nome';
+
+        if (mPura) mapaDinamicoCentros["m_" + mPura] = centroTexto;
+        if (nPuro) mapaDinamicoCentros["n_" + nPuro] = centroTexto;
+      }
+
+      const folhaConReal = livroContratuais.SheetNames.find(f => normalizarString(f) === "atribuicoes a um ciclo");
+      if (!folhaConReal) {
+        alert('Erro: Não foi possível localizar a folha "Atribuições a um ciclo" no ficheiro contratual.');
+        return;
+      }
+
+      const matrizContratuais = XLSX.utils.sheet_to_json(livroContratuais.Sheets[folhaConReal], { header: 1, raw: false });
+      const cabecalhosCon = matrizContratuais[0] || [];
+      const conIndiceMatricula = encontrarIndiceColuna(cabecalhosCon, PALAVRAS_MATRICULA);
+      const conIndiceNome = encontrarIndiceColuna(cabecalhosCon, PALAVRAS_NOME);
+      const conIndiceDataInicio = encontrarIndiceColuna(cabecalhosCon, PALAVRAS_INICIO);
+      const conIndiceDataFim = encontrarIndiceColuna(cabecalhosCon, PALAVRAS_FIM);
+
+      const dicionarioTrabalhadoresResultados = {};
+      let totalGeralOcorrenciasContadas = 0;
+
+      for (let i = 1; i < matrizContratuais.length; i++) {
+        const linha = matrizContratuais[i];
+        if (!linha || linha.length === 0) continue;
+
+        const valDataInicio = conIndiceDataInicio !== -1 ? SelfCleanDateValue(linha[conIndiceDataInicio]) : null;
+        const valDataFim = conIndiceDataFim !== -1 ? SelfCleanDateValue(linha[conIndiceDataFim]) : null;
+
+        if (!valDataInicio || !valDataFim) continue; 
+
+        const matOriginal = conIndiceMatricula !== -1 ? (linha[conIndiceMatricula] || '').toString().trim() : '-';
+        const nomeOriginal = conIndiceNome !== -1 ? (linha[conIndiceNome] || '').toString().trim() : 'Colaborador Sem Nome';
+
+        const matriculaLimpa = extrairMatriculaPura(matOriginal);
+        const nomeLimpo = normalizarString(nomeOriginal);
+
+        if (!matriculaLimpa && !nomeLimpo) continue;
+
+        let centroLocalizado = 'Não Encontrado (Afetação Terminada)';
+        if (matriculaLimpa && mapaDinamicoCentros["m_" + matriculaLimpa]) {
+          centroLocalizado = mapaDinamicoCentros["m_" + matriculaLimpa];
+        } else if (nomeLimpo && mapaDinamicoCentros["n_" + nomeLimpo]) {
+          centroLocalizado = mapaDinamicoCentros["n_" + nomeLimpo];
+        }
+
+        if (centroLocalizado.includes('Não Encontrado')) continue;
+
+        if (filtroCentroSelecao && centroLocalizado.toString().trim() !== filtroCentroSelecao.toString().trim()) {
+          continue;
+        }
+
+        const chaveAgrupamento = matriculaLimpa ? "M_" + matriculaLimpa : "N_" + nomeLimpo;
+
+        if (!dicionarioTrabalhadoresResultados[chaveAgrupamento]) {
+          dicionarioTrabalhadoresResultados[chaveAgrupamento] = {
+            matricula: matriculaLimpa ? matOriginal : '-',
+            nome: nomeOriginal,
+            centro: centroLocalizado,
+            ocorrencias: 0
+          };
+        }
+
+        if (!aplicarFiltroCronologico) {
+          dicionarioTrabalhadoresResultados[chaveAgrupamento].ocorrencias += 1;
+          totalGeralOcorrenciasContadas++;
+        } else {
+          const objetoDataValidar = processarObjetoData(valDataInicio);
+          if (objetoDataValidar) {
+            const atendeInicio = objetoDataMin ? objetoDataValidar >= objetoDataMin : true;
+            const atendeFim = objetoDataMax ? objetoDataValidar <= objetoDataMax : true;
+            if (atendeInicio && atendeFim) {
+              dicionarioTrabalhadoresResultados[chaveAgrupamento].ocorrencias += 1;
+              totalGeralOcorrenciasContadas++;
+            }
+          }
+        }
+      }
+
+      listaResultados = Object.values(dicionarioTrabalhadoresResultados);
+      AlterarNotificacaoVisual(`Processamento concluído. Foram validadas e reconciliadas <strong>${totalGeralOcorrenciasContadas}</strong> linhas com sucesso.`, 'green');
+      atualizarInterfaceGrafica(filtroCentroSelecao, totalGeralOcorrenciasContadas);
+    }
+
+    function SelfCleanDateValue(val) {
+      if (val === null || val === undefined) return null;
+      if (val instanceof Date) return val;
+      if (typeof val === 'string' && val.trim() === '') return null;
+      return val;
+    }
+
+    function atualizarInterfaceGrafica(centroFiltrado, totalOcorrencias) {
+      const tabela = document.getElementById('corpoTabelaResultados');
+      tabela.innerHTML = '';
+
+      const apenasComOcorrencias = listaResultados.filter(item => item.ocorrencias > 0);
+      apenasComOcorrencias.sort((a, b) => b.ocorrencias - a.ocorrencias);
+
+      if (apenasComOcorrencias.length === 0) {
+        tabela.innerHTML = `<tr><td colspan="4" class="px-6 py-12 text-center text-amber-500 font-semibold bg-amber-50/30">Nenhum registo de dados coincide com os parâmetros definidos.</td></tr>`;
+      } else {
+        apenasComOcorrencias.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50/80 transition-colors border-b border-slate-100 text-slate-700";
+          tr.innerHTML = `
+            <td class="px-6 py-4 font-mono font-semibold text-slate-500">${item.matricula}</td>
+            <td class="px-6 py-4 font-bold text-slate-900">${item.nome}</td>
+            <td class="px-6 py-4 text-slate-600"><span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg text-xs font-semibold">${item.centro}</span></td>
+            <td class="px-6 py-4 text-right font-extrabold text-indigo-600 text-base">${item.ocorrencias}</td>
+          `;
+          tabela.appendChild(tr);
+        });
+      }
+
+      document.getElementById('kpiTrabalhadores').innerText = apenasComOcorrencias.length;
+      document.getElementById('kpiOcorrencias').innerText = totalOcorrencias;
+      document.getElementById('kpiCentroAtivo').innerText = centroFiltrado || 'Todos os Centros';
+    }
+
+    document.getElementById('btnExportarExcel').addEventListener('click', () => {
+      const dados = listaResultados.filter(r => r.ocorrencias > 0);
+      if (!dados.length) { alert('Não existem dados estruturados para exportação.'); return; }
+      
+      const parsed = dados.map(r => ({
+        'Matrícula': r.matricula,
+        'Trabalhador': r.nome,
+        'Centro Ativo': r.centro,
+        'Contagem de Ocorrências': r.ocorrencias
+      }));
+      
+      const ws = XLSX.utils.json_to_sheet(parsed);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Mapeamento_Ativos');
+      XLSX.writeFile(wb, 'Consolidado_Ocorrencias_Ativos.xlsx');
+    });
+
+    document.getElementById('btnExportarPDF').addEventListener('click', () => {
+      const dados = listaResultados.filter(r => r.ocorrencias > 0);
+      if (!dados.length) { alert('Sem dados disponíveis para geração de PDF.'); return; }
+      
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      
+      doc.setFontSize(16);
+      doc.text('Relatório Consolidado de Ocorrências (Colaboradores Ativos)', 14, 20);
+      doc.setFontSize(10);
+      doc.text(`Filtro Temporal: ${filtroDatasAtivoNoPDF}`, 14, 27);
+      doc.text(`Data de Emissão: ${new Date().toLocaleString('pt-PT')}`, 14, 33);
+      
+      const rows = dados.map(r => [r.matricula, r.nome, r.centro, r.ocorrencias]);
+      doc.autoTable({
+        startY: 40,
+        head: [['Matrícula', 'Trabalhador', 'Centro Ativo', 'Contagem']],
+        body: rows,
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] }
+      });
+      doc.save('Relatorio_Ocorrencias_Ativos.pdf');
+    });
+  </script>
+</body>
+</html>
